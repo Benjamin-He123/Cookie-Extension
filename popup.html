@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>ClearConsent</title>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --card:    #1c2128;
+      --border:  #30363d;
+      --accent:  #58a6ff;
+      --yellow:  #f7c948;
+      --green:   #3fb950;
+      --orange:  #d29922;
+      --red:     #f85149;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 400px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;
+    }
+
+    /* ── Voice bar ── */
+    #voice-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; font-size: 12px; color: var(--muted);
+      background: #0a1520; border-bottom: 1px solid var(--border);
+    }
+    #mic-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    #mic-dot.listening { background: var(--green); animation: blink 1s infinite; }
+    #mic-dot.speaking  { background: var(--yellow); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    #voice-status { flex: 1; }
+    #voice-heard  { font-style: italic; color: var(--accent); font-size: 11px; }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { display: flex; align-items: center; gap: 8px; }
+    .pokeball {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(180deg, #f85149 50%, #fff 50%);
+      border: 2px solid #444; position: relative; flex-shrink: 0;
+    }
+    .pokeball::before {
+      content: ''; position: absolute; top: 50%; left: 0; right: 0;
+      height: 2px; background: #222; transform: translateY(-50%);
+    }
+    .pokeball::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #fff; border: 2px solid #222;
+    }
+    .logo-text { font-weight: 800; font-size: 15px; }
+    .logo-text span { color: var(--yellow); }
+    .logo-sub  { font-size: 11px; color: var(--muted); display: block; }
+
+    .hdr-btns { display: flex; gap: 6px; }
+
+    /* ── Generic button reset ── */
+    button {
+      cursor: pointer;
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+      border: none;
+      background: none;
+    }
+
+    .icon-btn {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); border-radius: 7px; padding: 6px 10px;
+      font-size: 12px; display: flex; align-items: center; gap: 4px;
+    }
+    .icon-btn:hover  { background: var(--border); border-color: var(--accent); }
+    .icon-btn.active { border-color: var(--green); color: var(--green); }
+    .icon-btn:focus  { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Language bar ── */
+    #lang-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    #lang-bar label { font-size: 12px; color: var(--muted); }
+    #lang-select {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 4px 8px;
+      font-size: 13px; flex: 1;
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    }
+    #lang-select:focus { outline: 2px solid var(--accent); }
+
+    /* ── TTS panel ── */
+    #tts-panel {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 10px 14px; display: none;
+    }
+    #tts-panel.open { display: block; }
+    .tts-title { font-weight: 700; font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+    .tts-row   { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+    .tts-btn {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); border-radius: 7px; padding: 5px 11px;
+      font-size: 12px; display: flex; align-items: center; gap: 4px;
+    }
+    .tts-btn:hover { border-color: var(--accent); }
+    .tts-btn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .speed-wrap { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+    .speed-wrap label { font-size: 11px; color: var(--muted); }
+    #tts-rate { width: 70px; accent-color: var(--accent); }
+    #tts-rate-val { font-size: 11px; min-width: 28px; }
+
+    .voice-row { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+    .voice-row label { font-size: 11px; color: var(--muted); }
+    #voice-select {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 3px 6px;
+      font-size: 12px; flex: 1;
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* ── Risk gauge ── */
+    .risk-wrap {
+      padding: 12px 14px 10px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .risk-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .risk-title-text { font-weight: 700; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .risk-badge {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      padding: 2px 9px; border-radius: 12px; margin-top: 3px;
+    }
+    .risk-badge.low    { background: #0d2a0d; color: var(--green); }
+    .risk-badge.medium { background: #3a2a00; color: var(--orange); }
+    .risk-badge.high   { background: #3a1010; color: var(--red); }
+    .risk-num-block { text-align: right; }
+    .risk-num   { font-weight: 800; font-size: 34px; line-height: 1; color: var(--red); }
+    .risk-denom { font-size: 11px; color: var(--muted); }
+
+    .risk-track {
+      height: 8px; border-radius: 8px; position: relative; margin-bottom: 4px;
+      background: linear-gradient(to right, #3fb950 0%, #d29922 50%, #f85149 100%);
+    }
+    .risk-thumb {
+      position: absolute; top: 50%; transform: translate(-50%,-50%);
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #fff; border: 3px solid #f85149;
+      transition: left .4s ease, border-color .3s;
+    }
+    .risk-track-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+    .risk-reason {
+      font-size: 12px; color: var(--muted); margin-top: 7px;
+      padding-top: 7px; border-top: 1px solid var(--border); line-height: 1.5;
+    }
+    .risk-reason b { color: var(--text); }
+
+    /* ── Voice help ── */
+    #voice-help {
+      display: none; margin: 8px 14px 0;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    #voice-help.open { display: block; }
+    .vh-title { font-weight: 700; font-size: 12px; color: var(--accent); margin-bottom: 6px; }
+    .vh-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+    .vh-item  { font-size: 11px; color: var(--muted); }
+    .vh-item code { color: var(--yellow); background: var(--surface); border-radius: 3px; padding: 1px 4px; }
+
+    /* ── Main ── */
+    main { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .section-label {
+      font-weight: 700; font-size: 11px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .6px;
+    }
+    .cookie-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .cookie-row {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 11px 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cookie-row:hover { border-color: var(--accent); }
+    .cookie-row#row-targeting { border-color: #4a1515; }
+
+    .cookie-info { flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cookie-name { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+
+    .risk-chip {
+      font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 700;
+    }
+    .chip-low  { background: #0d2a0d; color: var(--green); }
+    .chip-med  { background: #3a2a00; color: var(--orange); }
+    .chip-high { background: #3a1010; color: var(--red); }
+
+    .req-badge {
+      font-size: 10px; padding: 1px 6px; border-radius: 10px;
+      background: #1c2a3a; color: var(--accent); border: 1px solid #2a3f5c; font-weight: 700;
+    }
+
+    .speak-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 4px 8px;
+      font-size: 12px; flex-shrink: 0;
+    }
+    .speak-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .speak-btn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Toggle switch — fully JS driven ── */
+    .toggle {
+      width: 42px; height: 24px; border-radius: 24px;
+      background: var(--border); border: none;
+      position: relative; flex-shrink: 0;
+      transition: background .2s;
+      cursor: pointer;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute; top: 3px; left: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff;
+      transition: transform .2s;
+    }
+    .toggle.on              { background: var(--green); }
+    .toggle.on::after       { transform: translateX(18px); }
+    .toggle.disabled        { opacity: .4; cursor: not-allowed; }
+    .toggle:focus           { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Action buttons ── */
+    .action-bar { padding: 6px 14px 12px; display: flex; flex-direction: column; gap: 6px; }
+
+    .btn {
+      width: 100%; padding: 11px; border-radius: 10px;
+      font-weight: 700; font-size: 14px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      border: none; cursor: pointer;
+    }
+    .btn:hover  { opacity: .88; }
+    .btn:active { transform: scale(.98); }
+    .btn:focus  { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    .btn-save { background: linear-gradient(135deg, #3fb950, #27a844); color: #031a08; }
+    .btn-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .btn-ess  { background: var(--card); color: var(--text); border: 1px solid var(--border); font-size: 13px; }
+    .btn-ess:hover  { border-color: var(--yellow); color: var(--yellow); opacity: 1; }
+    .btn-rej  { background: transparent; color: var(--muted); border: 1px solid var(--border); font-size: 13px; }
+    .btn-rej:hover  { color: var(--red); border-color: var(--red); opacity: 1; }
+
+    /* ── Footer ── */
+    footer {
+      padding: 7px 14px 12px; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between;
+    }
+    footer a { font-size: 11px; color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <div id="sr-live"  class="sr-only" role="status"  aria-live="polite"   aria-atomic="true"></div>
+  <div id="sr-alert" class="sr-only" role="alert"   aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Voice bar -->
+  <div id="voice-bar">
+    <div id="mic-dot"></div>
+    <span id="voice-status">Voice off — click 🎤 or press V</span>
+    <span id="voice-heard"></span>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="pokeball" aria-hidden="true"></div>
+      <div>
+        <div class="logo-text">Clear<span>Consent</span></div>
+        <span class="logo-sub" id="site-name">Pokémon Center CA</span>
+      </div>
+    </div>
+    <div class="hdr-btns">
+      <button class="icon-btn" id="btn-voice" aria-label="Toggle voice control, shortcut V">🎤 Voice</button>
+      <button class="icon-btn" id="btn-tts"   aria-label="Toggle text to speech, shortcut T">🔊 TTS</button>
+    </div>
+  </header>
+
+  <!-- Language -->
+  <div id="lang-bar">
+    <label for="lang-select">🌍 Language:</label>
+    <select id="lang-select">
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+    </select>
+  </div>
+
+  <!-- TTS panel -->
+  <div id="tts-panel">
+    <div class="tts-title">🔊 Text-to-Speech</div>
+    <div class="tts-row">
+      <button class="tts-btn" id="tts-all">▶ Read All</button>
+      <button class="tts-btn" id="tts-risk">📊 Risk Score</button>
+      <button class="tts-btn" id="tts-stop">⏹ Stop</button>
+      <div class="speed-wrap">
+        <label for="tts-rate">Speed:</label>
+        <input type="range" id="tts-rate" min="0.5" max="2" step="0.1" value="1"/>
+        <span id="tts-rate-val">1.0×</span>
+      </div>
+    </div>
+    <div class="voice-row">
+      <label for="voice-select">🗣 Voice:</label>
+      <select id="voice-select"></select>
+    </div>
+  </div>
+
+  <!-- Risk gauge -->
+  <section class="risk-wrap">
+    <div class="risk-header">
+      <div>
+        <div id="risk-heading" class="risk-title-text">Overall Privacy Risk</div>
+        <span id="risk-badge" class="risk-badge high">High Risk</span>
+      </div>
+      <div class="risk-num-block">
+        <span id="risk-num" class="risk-num">7</span>
+        <span class="risk-denom">/ 10</span>
+      </div>
+    </div>
+    <div class="risk-track">
+      <div id="risk-thumb" class="risk-thumb" style="left:66.7%"></div>
+    </div>
+    <div class="risk-track-labels">
+      <span>1 Low</span><span>5 Med</span><span>10 High</span>
+    </div>
+    <p id="risk-reason" class="risk-reason">
+      <b>⛔ High exposure.</b> Targeting &amp; Advertising cookies let Facebook, Google Ads &amp; Criteo track you across other websites. Disable them below to lower your score.
+    </p>
+  </section>
+
+  <!-- Voice commands help -->
+  <div id="voice-help">
+    <div class="vh-title">🎤 Voice Commands:</div>
+    <div class="vh-grid">
+      <div class="vh-item"><code>accept all</code></div>
+      <div class="vh-item"><code>reject all</code></div>
+      <div class="vh-item"><code>necessary only</code></div>
+      <div class="vh-item"><code>enable analytics</code></div>
+      <div class="vh-item"><code>disable analytics</code></div>
+      <div class="vh-item"><code>enable targeting</code></div>
+      <div class="vh-item"><code>disable targeting</code></div>
+      <div class="vh-item"><code>enable functional</code></div>
+      <div class="vh-item"><code>read risk</code></div>
+      <div class="vh-item"><code>read all</code></div>
+      <div class="vh-item"><code>save</code></div>
+      <div class="vh-item"><code>stop</code></div>
+    </div>
+  </div>
+
+  <!-- Cookie categories -->
+  <main id="main">
+    <div id="cat-label" class="section-label">Cookie Categories — pokemoncenter.com/en-ca</div>
+    <div class="cookie-list">
+
+      <!-- Strictly Necessary -->
+      <div class="cookie-row">
+        <div class="cookie-info">
+          <div class="cookie-name">🔒 <span id="lbl-necessary">Strictly Necessary</span></div>
+          <span id="lbl-always" class="req-badge">Always On</span>
+          <span class="risk-chip chip-low">● Low risk</span>
+        </div>
+        <button class="speak-btn" data-cat="necessary" aria-label="Read Strictly Necessary description">🔊</button>
+        <button class="toggle on disabled" id="tog-necessary" disabled
+          aria-label="Strictly necessary cookies, always active" aria-pressed="true" role="switch"></button>
+      </div>
+
+      <!-- Analytical -->
+      <div class="cookie-row">
+        <div class="cookie-info">
+          <div class="cookie-name">📊 <span id="lbl-analytical">Analytical</span></div>
+          <span class="risk-chip chip-med">● Medium risk</span>
+        </div>
+        <button class="speak-btn" data-cat="analytical" aria-label="Read Analytical description">🔊</button>
+        <button class="toggle" id="tog-analytical"
+          aria-label="Toggle analytical cookies" aria-pressed="false" role="switch"></button>
+      </div>
+
+      <!-- Functional -->
+      <div class="cookie-row">
+        <div class="cookie-info">
+          <div class="cookie-name">⚙️ <span id="lbl-functional">Functional</span></div>
+          <span class="risk-chip chip-low">● Low risk</span>
+        </div>
+        <button class="speak-btn" data-cat="functional" aria-label="Read Functional description">🔊</button>
+        <button class="toggle" id="tog-functional"
+          aria-label="Toggle functional cookies" aria-pressed="false" role="switch"></button>
+      </div>
+
+      <!-- Targeting -->
+      <div class="cookie-row" id="row-targeting">
+        <div class="cookie-info">
+          <div class="cookie-name">📣 <span id="lbl-targeting">Targeting &amp; Advertising</span></div>
+          <span class="risk-chip chip-high">● High risk</span>
+        </div>
+        <button class="speak-btn" data-cat="targeting" aria-label="Read Targeting description">🔊</button>
+        <button class="toggle" id="tog-targeting"
+          aria-label="Toggle targeting and advertising cookies" aria-pressed="false" role="switch"></button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Actions -->
+  <div class="action-bar">
+    <button class="btn btn-save" id="btn-save">✓ <span id="lbl-save">Save My Choices</span></button>
+    <div class="btn-row">
+      <button class="btn btn-ess" id="btn-ess">🔒 <span id="lbl-ess">Necessary Only</span></button>
+      <button class="btn btn-rej" id="btn-reject">✕ <span id="lbl-reject">Reject All</span></button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <a href="https://www.pokemoncenter.com/en-ca/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
+    <a href="https://www.pokemoncenter.com/cookies" target="_blank" rel="noopener">Cookie Details</a>
+    <a href="mailto:privacyquestions@pokemon.com">Contact</a>
+  </footer>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── Translations ── */
+  var LANG = {
+    en: {
+      risk_title:'Overall Privacy Risk', cat_label:'Cookie Categories — pokemoncenter.com/en-ca',
+      necessary:'Strictly Necessary', always_on:'Always On',
+      analytical:'Analytical', functional:'Functional', targeting:'Targeting & Advertising',
+      save:'Save My Choices', ess:'Necessary Only', reject:'Reject All',
+      saved:'Preferences saved.', rejected:'All optional cookies rejected.', ess_done:'Essential cookies only.',
+      voice_on:'Voice control active. Say: accept all, reject all, necessary only, enable analytics, disable targeting, read risk, read all, or save.',
+      voice_off:'Voice control stopped.',
+      risk_low:'Good choice! Only essential cookies are active. Your data is not shared with advertisers.',
+      risk_med:'Moderate exposure. Analytics or functional cookies are on. Data is anonymous.',
+      risk_high:'High exposure. Targeting cookies are active. Facebook, Google Ads, and Criteo will track your browser across other websites.',
+      sp_necessary:'Strictly Necessary cookies are required for login, cart, and checkout. They cannot be switched off.',
+      sp_analytical:'Analytical cookies count page visits and measure site performance. Data is aggregated and anonymous.',
+      sp_functional:'Functional cookies remember your language, region, and display preferences.',
+      sp_targeting:'Targeting and Advertising cookies are set by ad partners including Facebook, Google Ads, and Criteo. They track your browser across other websites to show you targeted ads.',
+    },
+    fr: {
+      risk_title:'Risque de confidentialité', cat_label:'Catégories de cookies — pokemoncenter.com/en-ca',
+      necessary:'Strictement nécessaire', always_on:'Toujours actif',
+      analytical:'Analytique', functional:'Fonctionnel', targeting:'Ciblage et publicité',
+      save:'Enregistrer mes choix', ess:'Nécessaire seulement', reject:'Tout refuser',
+      saved:'Préférences enregistrées.', rejected:'Cookies optionnels refusés.', ess_done:'Cookies essentiels seulement.',
+      voice_on:'Contrôle vocal actif.',
+      voice_off:'Contrôle vocal arrêté.',
+      risk_low:'Bon choix ! Seuls les cookies essentiels sont actifs.',
+      risk_med:'Exposition modérée. Des cookies analytiques sont actifs.',
+      risk_high:'Exposition élevée. Les cookies de ciblage sont actifs et suivent votre navigateur.',
+      sp_necessary:'Les cookies strictement nécessaires sont requis pour la connexion et le panier.',
+      sp_analytical:'Les cookies analytiques comptent les visites. Les données sont anonymes.',
+      sp_functional:'Les cookies fonctionnels mémorisent votre langue et vos préférences.',
+      sp_targeting:'Les cookies de ciblage suivent votre navigateur sur d\'autres sites pour vous montrer des publicités.',
+    }
+  };
+
+  var lang = 'en';
+
+  function t(k) { return (LANG[lang]||LANG.en)[k] || LANG.en[k] || k; }
+
+  function g(id) { return document.getElementById(id); }
+
+  function announce(msg) {
+    var el = g('sr-live');
+    el.textContent = '';
+    setTimeout(function(){ el.textContent = msg; }, 60);
+  }
+
+  /* ── Apply translations ── */
+  function applyLang() {
+    document.documentElement.lang = lang;
+    g('risk-heading').textContent    = t('risk_title');
+    g('cat-label').textContent       = t('cat_label');
+    g('lbl-necessary').textContent   = t('necessary');
+    g('lbl-always').textContent      = t('always_on');
+    g('lbl-analytical').textContent  = t('analytical');
+    g('lbl-functional').textContent  = t('functional');
+    g('lbl-targeting').textContent   = t('targeting');
+    g('lbl-save').textContent        = t('save');
+    g('lbl-ess').textContent         = t('ess');
+    g('lbl-reject').textContent      = t('reject');
+    updateGauge();
+  }
+
+  g('lang-select').addEventListener('change', function() {
+    lang = this.value;
+    applyLang();
+    announce(lang === 'fr' ? 'Langue : Français' : 'Language: English');
+  });
+
+  /* ── Toggle state ── */
+  var state = { analytical: false, functional: false, targeting: false };
+
+  function getToggle(cat) { return g('tog-' + cat); }
+
+  function setToggle(cat, val) {
+    if (cat === 'necessary') return; // always on
+    state[cat] = val;
+    var btn = getToggle(cat);
+    if (val) {
+      btn.classList.add('on');
+    } else {
+      btn.classList.remove('on');
+    }
+    btn.setAttribute('aria-pressed', val ? 'true' : 'false');
+    updateGauge();
+  }
+
+  function flipToggle(cat) {
+    if (cat === 'necessary') return;
+    setToggle(cat, !state[cat]);
+    var name = { analytical:'Analytical', functional:'Functional', targeting:'Targeting and Advertising' }[cat];
+    var status = state[cat] ? 'enabled' : 'disabled';
+    announce(name + ' cookies ' + status);
+    if (ttsOpen || voiceOn) speak(name + ' cookies ' + status + '.');
+  }
+
+  /* Wire toggle buttons */
+  ['analytical','functional','targeting'].forEach(function(cat) {
+    getToggle(cat).addEventListener('click', function() {
+      flipToggle(cat);
+    });
+  });
+
+  /* ── Risk gauge ── */
+  function computeRisk() {
+    var s = 2;
+    if (state.analytical) s += 2;
+    if (state.functional)  s += 1;
+    if (state.targeting)   s += 4;
+    return Math.min(10, s);
+  }
+
+  function updateGauge() {
+    var score  = computeRisk();
+    var pct    = ((score - 1) / 9) * 100;
+    var thumb  = g('risk-thumb');
+    var numEl  = g('risk-num');
+    var badge  = g('risk-badge');
+    var reason = g('risk-reason');
+    var rowT   = g('row-targeting');
+
+    numEl.textContent  = score;
+    thumb.style.left   = pct + '%';
+
+    var colour, cls, label, icon, why;
+    if (score <= 3) {
+      colour='#3fb950'; cls='low';    label='Low Risk';    icon='✓';
+      why = t('risk_low');
+    } else if (score <= 5) {
+      colour='#d29922'; cls='medium'; label='Medium Risk'; icon='⚠';
+      why = t('risk_med');
+    } else {
+      colour='#f85149'; cls='high';   label='High Risk';   icon='⛔';
+      why = t('risk_high');
+    }
+
+    numEl.style.color         = colour;
+    thumb.style.borderColor   = colour;
+    badge.className           = 'risk-badge ' + cls;
+    badge.textContent         = label;
+    reason.innerHTML          = '<b>' + icon + ' </b>' + why;
+    rowT.style.borderColor    = state.targeting ? '#4a1515' : '#30363d';
+  }
+
+  /* ── TTS ── */
+  var synth  = window.speechSynthesis;
+  var voices = [];
+  var ttsOpen = false;
+
+  function loadVoices() {
+    voices = synth.getVoices();
+    var sel = g('voice-select');
+    sel.innerHTML = '';
+    voices.forEach(function(v, i) {
+      var o = document.createElement('option');
+      o.value = i;
+      o.textContent = v.name + ' (' + v.lang + ')';
+      sel.appendChild(o);
+    });
+    var best = -1;
+    voices.forEach(function(v, i) {
+      if (best === -1 && v.lang.toLowerCase().startsWith(lang)) best = i;
+    });
+    if (best >= 0) sel.value = best;
+  }
+
+  if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = loadVoices;
+  loadVoices();
+
+  function speak(text) {
+    if (!synth) return;
+    synth.cancel();
+    var utt = new SpeechSynthesisUtterance(text);
+    var idx = parseInt(g('voice-select').value, 10);
+    if (voices[idx]) utt.voice = voices[idx];
+    utt.rate = parseFloat(g('tts-rate').value);
+    utt.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
+
+    utt.onstart = function() {
+      g('mic-dot').className = 'speaking';
+      g('voice-status').textContent = '🔊 Speaking…';
+    };
+    utt.onend = utt.onerror = function() {
+      g('mic-dot').className = voiceOn ? 'listening' : '';
+      g('voice-status').textContent = voiceOn
+        ? '🎤 Listening — say a command'
+        : 'Voice off — click 🎤 or press V';
+    };
+    synth.speak(utt);
+  }
+
+  function buildReadAll() {
+    var score = computeRisk();
+    var lbl   = score<=3?'Low Risk':score<=5?'Medium Risk':'High Risk';
+    var a = state.analytical?'enabled':'disabled';
+    var f = state.functional?'enabled':'disabled';
+    var tg= state.targeting?'enabled':'disabled';
+    return t('risk_title')+'. Score: '+score+' out of 10. '+lbl+'. '
+      +t('sp_necessary')+' '
+      +'Analytical: '+a+'. '+t('sp_analytical')+' '
+      +'Functional: '+f+'. '+t('sp_functional')+' '
+      +'Targeting: '+tg+'. '+t('sp_targeting');
+  }
+
+  function buildReadRisk() {
+    var score = computeRisk();
+    return 'Privacy risk is '+score+' out of 10. '
+      +(score<=3?t('risk_low'):score<=5?t('risk_med'):t('risk_high'));
+  }
+
+  g('tts-all').addEventListener('click',  function() { speak(buildReadAll()); });
+  g('tts-risk').addEventListener('click', function() { speak(buildReadRisk()); });
+  g('tts-stop').addEventListener('click', function() { synth.cancel(); });
+  g('tts-rate').addEventListener('input', function() {
+    g('tts-rate-val').textContent = parseFloat(this.value).toFixed(1) + '×';
+  });
+
+  document.querySelectorAll('.speak-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var cat = this.getAttribute('data-cat');
+      var map = { necessary:t('sp_necessary'), analytical:t('sp_analytical'), functional:t('sp_functional'), targeting:t('sp_targeting') };
+      if (map[cat]) speak(map[cat]);
+    });
+  });
+
+  g('btn-tts').addEventListener('click', function() {
+    ttsOpen = !ttsOpen;
+    g('tts-panel').classList.toggle('open', ttsOpen);
+    this.classList.toggle('active', ttsOpen);
+    this.setAttribute('aria-pressed', String(ttsOpen));
+    if (ttsOpen) { loadVoices(); speak(buildReadAll()); }
+    else synth.cancel();
+  });
+
+  /* ── Voice control ── */
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recog = null;
+  var voiceOn = false;
+
+  function setOptionals(val) {
+    ['analytical','functional','targeting'].forEach(function(c) { setToggle(c, val); });
+  }
+
+  function handleCmd(cmd) {
+    g('voice-heard').textContent = '"' + cmd + '"';
+    announce('Heard: ' + cmd);
+
+    if      (/accept all/i.test(cmd))                             { setOptionals(true);  flashBtn('btn-save','✓ Accepted!',t('saved')); speak(t('saved')); }
+    else if (/reject all/i.test(cmd))                             { setOptionals(false); flashBtn('btn-reject','✕ Done',t('rejected')); speak(t('rejected')); }
+    else if (/necessary only|essential only/i.test(cmd))          { setOptionals(false); flashBtn('btn-ess','🔒 Done',t('ess_done')); speak(t('ess_done')); }
+    else if (/enable analytics|turn on analytics/i.test(cmd))     { setToggle('analytical',true);  speak('Analytical cookies enabled.'); }
+    else if (/disable analytics|turn off analytics/i.test(cmd))   { setToggle('analytical',false); speak('Analytical cookies disabled.'); }
+    else if (/enable functional|turn on functional/i.test(cmd))    { setToggle('functional',true);  speak('Functional cookies enabled.'); }
+    else if (/disable functional|turn off functional/i.test(cmd))  { setToggle('functional',false); speak('Functional cookies disabled.'); }
+    else if (/enable targeting|turn on targeting/i.test(cmd))      { setToggle('targeting',true);   speak('Targeting cookies enabled.'); }
+    else if (/disable targeting|turn off targeting/i.test(cmd))    { setToggle('targeting',false);  speak('Targeting cookies disabled.'); }
+    else if (/read risk|risk score/i.test(cmd))                    { speak(buildReadRisk()); }
+    else if (/read all|tell me/i.test(cmd))                        { speak(buildReadAll()); }
+    else if (/^save$|save choices|confirm/i.test(cmd))             { g('btn-save').click(); }
+    else if (/^stop$|stop speaking|quiet/i.test(cmd))              { synth.cancel(); }
+    else if (/help|commands/i.test(cmd))                           { speak('You can say: accept all, reject all, necessary only, enable analytics, disable analytics, enable targeting, disable targeting, read risk, read all, save, or stop.'); }
+    else                                                            { speak('Command not recognised. Say help for commands.'); }
+
+    setTimeout(function() { g('voice-heard').textContent = ''; }, 3000);
+  }
+
+  function startVoice() {
+    if (!SpeechRec) { speak('Voice control requires the Chrome browser.'); return; }
+    recog = new SpeechRec();
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
+
+    recog.onstart = function() {
+      voiceOn = true;
+      g('mic-dot').className = 'listening';
+      g('voice-status').textContent = '🎤 Listening — say a command';
+      g('btn-voice').classList.add('active');
+      g('btn-voice').setAttribute('aria-pressed','true');
+      g('voice-help').classList.add('open');
+      speak(t('voice_on'));
+    };
+    recog.onend = function() { if (voiceOn) { try { recog.start(); } catch(e){} } };
+    recog.onresult = function(e) {
+      var interim = '';
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) handleCmd(e.results[i][0].transcript.trim().toLowerCase());
+        else interim += e.results[i][0].transcript;
+      }
+      g('voice-heard').textContent = interim;
+    };
+    recog.onerror = function(err) {
+      if (err.error !== 'no-speech') announce('Voice error: ' + err.error);
+    };
+    recog.start();
+  }
+
+  function stopVoice() {
+    voiceOn = false;
+    if (recog) { recog.onend = null; try { recog.stop(); } catch(e){} recog = null; }
+    g('mic-dot').className = '';
+    g('voice-status').textContent = 'Voice off — click 🎤 or press V';
+    g('btn-voice').classList.remove('active');
+    g('btn-voice').setAttribute('aria-pressed','false');
+    g('voice-help').classList.remove('open');
+    g('voice-heard').textContent = '';
+    announce(t('voice_off'));
+  }
+
+  g('btn-voice').addEventListener('click', function() {
+    voiceOn ? stopVoice() : startVoice();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (['INPUT','SELECT','TEXTAREA'].indexOf(e.target.tagName) > -1) return;
+    if (e.key === 'v' || e.key === 'V') { e.preventDefault(); voiceOn ? stopVoice() : startVoice(); }
+    if (e.key === 't' || e.key === 'T') { e.preventDefault(); g('btn-tts').click(); }
+  });
+
+  /* ── Action buttons ── */
+  g('btn-save').addEventListener('click', function() {
+    var on = [];
+    if (state.analytical) on.push('Analytical');
+    if (state.functional)  on.push('Functional');
+    if (state.targeting)   on.push('Targeting');
+    var msg = on.length ? 'Saved. Accepted: ' + on.join(', ') + '.' : t('ess_done');
+    flashBtn('btn-save','✓ Saved!', msg);
+    speak(msg);
+  });
+
+  g('btn-ess').addEventListener('click', function() {
+    setOptionals(false);
+    flashBtn('btn-ess','🔒 Done', t('ess_done'));
+    speak(t('ess_done'));
+  });
+
+  g('btn-reject').addEventListener('click', function() {
+    setOptionals(false);
+    flashBtn('btn-reject','✕ Done', t('rejected'));
+    speak(t('rejected'));
+  });
+
+  function flashBtn(id, label, msg) {
+    var btn  = g(id);
+    var orig = btn.innerHTML;
+    btn.innerHTML = label;
+    btn.disabled  = true;
+    announce(msg);
+    setTimeout(function() {
+      btn.innerHTML = orig;
+      btn.disabled  = false;
+    }, 1800);
+  }
+
+  /* ── Init ── */
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs && tabs[0] && tabs[0].url) {
+        try { g('site-name').textContent = new URL(tabs[0].url).hostname; } catch(e){}
+      }
+    });
+  } catch(e) {}
+
+  updateGauge();
+
+})();
+</script>
+</body>
+</html>
