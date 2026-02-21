@@ -1,30 +1,37 @@
 {
   "manifest_version": 3,
-  "name": "Cookie Helper: Consent Guard",
-  "version": "1.0",
-  "description": "Detects cookie-consent banners, explains cookies, and lets you block selected ones.",
+  "name": "ClearConsent: Cookie Guard",
+  "version": "2.0",
+  "description": "Detects cookie-consent banners, explains each cookie with AI, scores your privacy risk 1–10, and lets you block selected cookies. Supports English and French.",
   "permissions": [
     "cookies",
-    "tabs"
+    "tabs",
+    "storage",
+    "activeTab",
+    "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://api.anthropic.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content-script.js"
-      ],
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-style.css"],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "Cookie Helper"
+    "default_popup": "popup.html",
+    "default_title": "ClearConsent",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }
